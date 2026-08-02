@@ -62,7 +62,7 @@ class AntonioBot(irc.bot.SingleServerIRCBot):
 
         # Admin Control Check
         if cmd.startswith("!") and author.lower() != "antonio":
-            c.privmsg(self.channel, f"🚫 Hey @{author}, only **Antonio** can command me! 🔒")
+            c.privmsg(self.channel, f"")
             return
 
         # Mention Check
