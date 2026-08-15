@@ -28,6 +28,23 @@ class AntonioBot(irc.bot.SingleServerIRCBot):
         seconds = s % 60
         return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
 
+    def format_hm(self, s):
+        hours = s // 3600
+        minutes = (s % 3600) // 60
+        return f"{int(hours)}h{int(minutes)}m"
+
+    def send_breakdown(self, c, entries):
+        """Send label:value pairs as one or more IRC-safe length lines."""
+        line = ""
+        for label, secs in entries:
+            piece = f"{label}:{self.format_hm(secs)} "
+            if len(line) + len(piece) > 380:
+                c.privmsg(self.channel, line.strip())
+                line = ""
+            line += piece
+        if line:
+            c.privmsg(self.channel, line.strip())
+
     def bg_loop(self):
         """Reminders and Note looping"""
         while True:
@@ -78,6 +95,9 @@ class AntonioBot(irc.bot.SingleServerIRCBot):
         # --- COMMANDS ---
 
         if cmd == "!startstudy":
+            # Force a rollover/streak check in case this is the first
+            # command of a new NPT day.
+            storage.get_data()
             self.study_start_time = datetime.now(NPT)
             c.privmsg(self.channel, f"🚀 **STUDY SESSION STARTED** at {self.study_start_time.strftime('%H:%M:%S')} (NPT). Let's go, Antonio! 💪🔥")
 
@@ -106,6 +126,24 @@ class AntonioBot(irc.bot.SingleServerIRCBot):
         elif cmd == "!dailyrec":
             data = storage.get_data()
             c.privmsg(self.channel, f"📅 **Daily Record:** You have studied {self.format_seconds(data['total_seconds_today'])} today! 🎯")
+
+        elif cmd == "!monthlyrec":
+            now = datetime.now(NPT)
+            parts = msg.split()
+            month = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else now.month
+            total = storage.get_monthly_total(now.year, month)
+            c.privmsg(self.channel, f"📆 **Monthly Record ({now.year}-{month:02d}) — Total: {self.format_seconds(total)}** 📊")
+            breakdown = storage.get_monthly_breakdown(now.year, month)
+            self.send_breakdown(c, breakdown)
+
+        elif cmd == "!yearlyrec":
+            now = datetime.now(NPT)
+            parts = msg.split()
+            year = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else now.year
+            total = storage.get_yearly_total(year)
+            c.privmsg(self.channel, f"🗓️ **Yearly Record ({year}) — Total: {self.format_seconds(total)}** 🎯")
+            breakdown = storage.get_yearly_breakdown(year)
+            self.send_breakdown(c, breakdown)
 
         elif cmd == "!tdl":
             data = storage.get_data()
